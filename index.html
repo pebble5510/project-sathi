@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#c4e4ec">
+<title>Project Sathi</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+
+<!--
+  Project Sathi — phone version of the AI Buddy extension.
+  Write your prompt here first, read the tips, then copy it into ChatGPT,
+  Claude or Gemini. Uses the SAME rules.js file as the Chrome extension.
+  Nothing you type is sent anywhere: all checks run on your phone.
+-->
+
+<style>
+  /* Layout: a scrapbook-style single column — graph-paper hero, a scrolling tip strip,
+     then the writing box, tips as pastel cards, and pill buttons to send. White page, flat pastels, no gradients. */
+  :root {
+    --white: #ffffff;
+    --ink: #1d1d1b;          /* near-black for text and outlines */
+    --muted: #5f5f5a;        /* secondary text */
+    --grid: #e7e9e4;         /* graph-paper lines */
+    --pink: #f9c9d8;         /* pastel highlights */
+    --pink-dot: #f08bab;
+    --blue: #c4e4ec;
+    --green: #c9dea5;
+    --butter: #fbe8a6;
+    --lilac: #ddd2f3;
+    --font: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Courier New", monospace;
+    color-scheme: light;     /* this design is always white, as asked */
+  }
+
+  /* Make sure anything marked "hidden" really stays hidden */
+  [hidden] { display: none !important; }
+
+  body {
+    background: var(--white);
+    color: var(--ink);
+    font: 17px/1.5 var(--font);
+  }
+
+  /* Graph-paper pattern (a tiny drawn square, repeated — not a gradient) */
+  .paper {
+    background-color: var(--white);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Cpath d='M22 0H0V22' fill='none' stroke='%23e7e9e4' stroke-width='1'/%3E%3C/svg%3E");
+  }
+
+  /* Side gutter used by every band */
+  .wrap {
+    max-width: 620px;
+    margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  /* Small typewriter-style labels */
+  .label {
+    font: 600 0.72rem/1.3 var(--mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* ----- Top announcement bar ----- */
+  .topbar {
+    background: var(--blue);
+    border-bottom: 1px solid var(--ink);
+    text-align: center;
+  }
+  .topbar .wrap { padding-block: 7px; font-size: 0.85rem; font-weight: 600; }
+
+  /* ----- Header (an outlined box with the logo) ----- */
+  .site-header .wrap { padding-block: 14px 0; }
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: var(--white);
+    border: 1.5px solid var(--ink);
+    border-radius: 14px;
+    padding: 8px 8px 8px 14px;
+  }
+  .logo {
+    font-size: 1.45rem;
+    font-weight: 300;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .logo b { font-weight: 700; }
+
+  /* ----- Pill buttons with a pink dot (used everywhere) ----- */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 18px;
+    box-sizing: border-box;
+    border: 1.5px solid var(--ink);
+    border-radius: 999px;
+    background: var(--white);
+    color: var(--ink);
+    font: 700 0.95rem var(--font);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+  }
+  .pill::before {
+    content: "";
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--pink-dot);
+    flex-shrink: 0;
+  }
+  .pill:hover { background: var(--pink); }
+  .pill:active { transform: scale(0.97); }
+  .pill.small { min-height: 36px; padding: 0 13px; font-size: 0.85rem; }
+  .pill.no-dot::before { display: none; }
+
+  :focus-visible { outline: 3px solid var(--pink-dot); outline-offset: 2px; }
+
+  /* ----- Hero ----- */
+  .hero { border-bottom: 1px solid var(--ink); }
+  .hero .wrap {
+    padding-block: 34px 34px;
+    text-align: center;
+    position: relative;
+  }
+  .hero h1 {
+    margin: 0;
+    font-size: clamp(2.3rem, 10vw, 3.6rem);
+    line-height: 1.02;
+    letter-spacing: -0.045em;
+    font-weight: 700;
+    text-wrap: balance;
+  }
+  .hero h1 .light { font-weight: 300; display: block; }
+  .hero h1 mark {
+    background: var(--pink);
+    color: var(--ink);
+    padding: 0 0.12em;
+  }
+  .hero p {
+    margin: 14px auto 18px;
+    max-width: 30ch;
+    color: var(--muted);
+  }
+  /* Little sticker-like tags around the headline */
+  .sticker {
+    display: inline-block;
+    background: var(--blue);
+    padding: 5px 9px;
+    transform: rotate(-3deg);
+  }
+  .hero .sticker { margin-bottom: 16px; }
+  .bubble {
+    position: absolute;
+    top: 18px;
+    right: max(16px, env(safe-area-inset-right, 0px));
+    background: var(--white);
+    border: 1.5px solid var(--ink);
+    border-radius: 14px;
+    padding: 4px 9px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    transform: rotate(6deg);
+  }
+
+  /* ----- Scrolling tip strip ----- */
+  .ticker {
+    background: var(--green);
+    border-bottom: 1px solid var(--ink);
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .ticker-track {
+    display: inline-block;
+    padding-block: 9px;
+    animation: scroll 40s linear infinite;
+  }
+  .ticker-track span { padding: 0 14px; }
+  @keyframes scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /* ----- Main area ----- */
+  main .wrap {
+    padding-block: 30px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+  }
+  .intro { text-align: center; }
+  .intro h2 {
+    margin: 6px 0 0;
+    font-size: 1.45rem;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  /* Writing box */
+  .composer {
+    border: 1.5px solid var(--ink);
+    border-radius: 18px;
+    overflow: hidden;
+    background: var(--white);
+  }
+  .composer-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--pink);
+    border-bottom: 1.5px solid var(--ink);
+  }
+  .composer textarea {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 140px;
+    resize: vertical;
+    border: none;
+    outline: none;
+    padding: 14px;
+    background: var(--white);
+    color: var(--ink);
+    font: 18px/1.5 var(--font);
+  }
+  .composer-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px 14px;
+  }
+  .mini-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* Status chip: same job as the round badge in the extension */
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-weight: 700;
+    font-size: 0.92rem;
+  }
+  .status .dot {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    border: 1.5px solid var(--ink);
+    background: var(--green);
+    font-size: 0.82rem;
+  }
+  .status.has-tips .dot { background: var(--butter); }
+
+  /* Section headings */
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 10px;
+  }
+  .section-title::after {
+    content: "";
+    flex: 1;
+    border-top: 1px dashed var(--ink);
+  }
+
+  /* Example chips (scroll sideways) */
+  .chips {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 2px 6px;
+    scrollbar-width: none;
+  }
+  .chips .pill { flex-shrink: 0; font-weight: 600; }
+
+  /* Tip cards: a pastel top band per type, like coloured index cards */
+  .tips-list { display: flex; flex-direction: column; gap: 12px; }
+  .tip {
+    border: 1.5px solid var(--ink);
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--white);
+  }
+  .tip h3 {
+    margin: 0;
+    padding: 9px 14px;
+    font-size: 1.02rem;
+    line-height: 1.3;
+    border-bottom: 1.5px solid var(--ink);
+  }
+  .tip-privacy h3 { background: var(--pink); }
+  .tip-prompt h3  { background: var(--blue); }
+  .tip-needAI h3  { background: var(--butter); }
+  .tip-ethics h3  { background: var(--lilac); }
+  .tip .body { padding: 10px 14px 12px; }
+  .tip p { margin: 0; }
+  .tip .example {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px dashed var(--ink);
+    border-radius: 10px;
+    font-size: 0.93rem;
+    color: var(--muted);
+  }
+  .all-good {
+    margin: 0;
+    padding: 12px 14px;
+    border: 1.5px solid var(--ink);
+    border-radius: 16px;
+    background: var(--green);
+    font-weight: 700;
+  }
+
+  /* Send buttons */
+  .send-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .send-grid .pill {
+    flex-direction: column;
+    gap: 0;
+    min-height: 60px;
+    border-radius: 18px;
+    line-height: 1.15;
+    padding: 0 8px;
+    text-align: center;
+  }
+  .send-grid .pill::before { margin-bottom: 4px; }
+  .send-grid .pill small { font-weight: 400; font-size: 0.74rem; color: var(--muted); }
+  #go-chatgpt { background: var(--green); }
+  #go-claude  { background: var(--pink); }
+  #go-gemini  { background: var(--blue); }
+  #go-chatgpt::before, #go-claude::before, #go-gemini::before { background: var(--ink); }
+  .copy-only { width: 100%; margin-top: 8px; }
+  .hint { margin: 10px 0 0; color: var(--muted); font-size: 0.92rem; }
+
+  /* Fact-check reminder */
+  .factcheck {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    background: var(--butter);
+    border: 1.5px solid var(--ink);
+    border-radius: 16px;
+    padding: 12px 14px;
+  }
+  .factcheck p { margin: 0; flex: 1; min-width: 0; }
+  .factcheck button {
+    background: transparent;
+    border: none;
+    color: var(--ink);
+    font: 400 1.4rem/1 var(--font);
+    min-height: 32px;
+    padding: 0 4px;
+    cursor: pointer;
+  }
+
+  /* Fold-out sections */
+  details {
+    border: 1.5px solid var(--ink);
+    border-radius: 16px;
+    padding: 0 14px;
+    background: var(--white);
+  }
+  summary {
+    cursor: pointer;
+    font-weight: 700;
+    padding: 13px 0;
+  }
+  details[open] summary { border-bottom: 1px dashed var(--ink); }
+  .setting {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 0;
+    border-bottom: 1px dashed var(--grid);
+  }
+  .setting:last-child { border-bottom: none; }
+  .setting-text { min-width: 0; }
+  .setting-text strong { display: block; }
+  .setting-text span { color: var(--muted); font-size: 0.9rem; }
+
+  /* On/off switch */
+  .switch { position: relative; flex-shrink: 0; width: 50px; height: 28px; }
+  .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+  .slider {
+    position: absolute; inset: 0;
+    border: 1.5px solid var(--ink);
+    border-radius: 28px;
+    background: var(--white);
+    transition: background 0.2s;
+  }
+  .slider::before {
+    content: "";
+    position: absolute;
+    width: 18px; height: 18px;
+    left: 3px; top: 3px;
+    border-radius: 50%;
+    background: var(--ink);
+    transition: transform 0.2s;
+  }
+  .switch input:checked + .slider { background: var(--green); }
+  .switch input:checked + .slider::before { transform: translateX(21px); }
+  .switch input:focus-visible + .slider { outline: 3px solid var(--pink-dot); outline-offset: 2px; }
+
+  .help ol { padding-left: 1.2em; margin: 10px 0 14px; }
+  .help li { margin-bottom: 6px; }
+
+  footer { border-top: 1px solid var(--ink); background: var(--pink); }
+  footer .wrap { padding-block: 16px; text-align: center; font-size: 0.9rem; }
+
+  /* Small pop-up message */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    max-width: calc(100% - 32px);
+    box-sizing: border-box;
+    background: var(--ink);
+    color: var(--white);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-weight: 700;
+    z-index: 10;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ticker-track { animation: none; }
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 1. Announcement bar -->
+<div class="topbar">
+  <div class="wrap">Write here first, then paste into your AI app ✦</div>
+</div>
+
+<!-- 2. Header + hero on graph paper -->
+<div class="paper hero">
+  <header class="site-header">
+    <div class="wrap">
+      <nav class="nav" aria-label="Project Sathi">
+        <span class="logo">project <b>sathi.</b></span>
+        <a class="pill small" href="#tip-settings">Tip settings</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <span class="bubble" aria-hidden="true">•••</span>
+    <span class="sticker label">AI made simple &amp; safe</span>
+    <h1>your <mark>sathi</mark> <span class="light">for using AI</span></h1>
+    <p>Friendly tips while you write, for students and small business owners new to AI.</p>
+    <a class="pill" href="#prompt">Start writing</a>
+  </div>
+</div>
+
+<!-- 3. Scrolling tip strip (the text is written twice so the loop is seamless) -->
+<div class="ticker" aria-hidden="true">
+  <div class="ticker-track label">
+    <span>Think before you share</span>|<span>Add goal, context, instructions, output</span>|<span>Learn, don't copy</span>|<span>Double-check facts</span>|<span>Try a calculator first</span>|
+    <span>Think before you share</span>|<span>Add goal, context, instructions, output</span>|<span>Learn, don't copy</span>|<span>Double-check facts</span>|<span>Try a calculator first</span>|
+  </div>
+</div>
+
+<main>
+  <div class="wrap">
+
+    <div class="intro">
+      <span class="label">Welcome to Project Sathi</span>
+      <h2>Write your prompt, read the tips, then send it with confidence.</h2>
+    </div>
+
+    <!-- 4. Writing box -->
+    <section class="composer">
+      <div class="composer-head">
+        <label for="prompt" class="label">Your prompt</label>
+        <div id="status" class="status" role="status" aria-live="polite">
+          <span class="dot">✓</span><span id="status-text">Looking good</span>
+        </div>
+      </div>
+      <textarea id="prompt" placeholder="Type what you want to ask the AI…"></textarea>
+      <div class="composer-bar">
+        <button id="template" class="pill small" type="button">Use 4-part template</button>
+        <button id="clear" class="pill small no-dot" type="button">Clear</button>
+      </div>
+    </section>
+
+    <!-- 5. Example prompts -->
+    <section>
+      <h2 class="section-title label">Try an example</h2>
+      <div class="chips" id="chips"></div>
+    </section>
+
+    <!-- 6. Tips -->
+    <section>
+      <h2 class="section-title label">Your tips</h2>
+      <div id="tips-list" class="tips-list"></div>
+    </section>
+
+    <!-- 7. Send to an AI app -->
+    <section>
+      <h2 class="section-title label">Ready? Copy &amp; open</h2>
+      <div class="send-grid">
+        <!-- Real links, so they work on every phone. Tapping also copies your prompt. -->
+        <a class="pill send-link" id="go-chatgpt" href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT<small>copy &amp; open</small></a>
+        <a class="pill send-link" id="go-claude" href="https://claude.ai/new" target="_blank" rel="noopener">Claude<small>copy &amp; open</small></a>
+        <a class="pill send-link" id="go-gemini" href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini<small>copy &amp; open</small></a>
+      </div>
+      <button id="copy" class="pill copy-only" type="button">Copy prompt only</button>
+      <p class="hint">Then press and hold in the AI's chat box and tap <strong>Paste</strong>. These are just tips: you can always send your prompt.</p>
+    </section>
+
+    <!-- 8. Fact-check reminder (appears after you open an AI app) -->
+    <div id="factcheck" class="factcheck" hidden>
+      <p>✅ <strong>When the AI replies:</strong> AI can make mistakes. Double-check important facts.</p>
+      <button id="factcheck-close" type="button" aria-label="Dismiss">×</button>
+    </div>
+
+    <!-- 9. Settings: one switch per tip type (built from rules.js) -->
+    <details id="tip-settings">
+      <summary>Tip settings</summary>
+      <div id="settings"></div>
+    </details>
+
+    <!-- 10. Add to home screen -->
+    <details class="help">
+      <summary>Add Project Sathi to your home screen</summary>
+      <ol>
+        <li><strong>Android (Chrome):</strong> tap the <strong>⋮</strong> menu at the top right, then <strong>Add to Home screen</strong>.</li>
+        <li><strong>iPhone (Safari):</strong> tap the <strong>Share</strong> button, then <strong>Add to Home Screen</strong>.</li>
+        <li>Now Project Sathi opens with one tap, like an app.</li>
+      </ol>
+    </details>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">🔐 Everything is checked on your phone. Nothing you type is sent anywhere.</div>
+</footer>
+
+<div id="toast" class="toast" hidden></div>
+
+<!-- The rules: the same file the Chrome extension uses -->
+<script src="rules.js"></script>
+
+<script>
+  // ===================================================================
+  // Makes the page work. Uses TIP_TYPES, DEFAULT_SETTINGS and getTips()
+  // from rules.js.
+  // ===================================================================
+
+  const promptBox = document.getElementById("prompt");
+  const tipsList = document.getElementById("tips-list");
+  const statusChip = document.getElementById("status");
+  const statusText = document.getElementById("status-text");
+  const factcheck = document.getElementById("factcheck");
+
+  // -------------------------------------------------------------
+  // 1. SAVING ON THIS PHONE (settings + unsent draft)
+  //    localStorage keeps things in this browser only.
+  //    try/catch: some private-browsing modes block it.
+  // -------------------------------------------------------------
+  function load(key, fallback) {
+    try {
+      const saved = localStorage.getItem(key);
+      return saved ? JSON.parse(saved) : fallback;
+    } catch (e) {
+      return fallback;
+    }
+  }
+  function save(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* ignore */ }
+  }
+
+  // Start from the defaults, then apply anything saved earlier
+  const settings = Object.assign({}, DEFAULT_SETTINGS, load("aib-settings", {}));
+
+  // -------------------------------------------------------------
+  // 2. EXAMPLE PROMPTS — tap one to fill the box
+  // -------------------------------------------------------------
+  const EXAMPLES = [
+    { label: "Phone number", text: "My number is 9876543210, please help me write a bio for my tailoring shop." },
+    { label: "Too short", text: "write a poem" },
+    { label: "Simple maths", text: "what is 25 x 4" },
+    { label: "Homework", text: "Please write my essay on climate change for class 9." },
+    { label: "OTP", text: "The OTP is 482913, what should I do with it now?" },
+    { label: "A good prompt", text: "Write 3 short Instagram captions to sell my handmade diyas for Diwali. I run a small home business in Jaipur. Keep them warm and friendly, with 2 hashtags each." }
+  ];
+
+  const chips = document.getElementById("chips");
+  EXAMPLES.forEach(function (example) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "pill small";
+    chip.textContent = example.label;
+    chip.addEventListener("click", function () {
+      promptBox.value = example.text;
+      update();
+    });
+    chips.appendChild(chip);
+  });
+
+  // -------------------------------------------------------------
+  // 3. CHECK THE PROMPT AND SHOW TIPS
+  // -------------------------------------------------------------
+  function update() {
+    const text = promptBox.value;
+    const tips = getTips(text, settings);   // from rules.js
+
+    // Status chip: tick or a number
+    statusChip.querySelector(".dot").textContent = tips.length ? tips.length : "✓";
+    statusChip.classList.toggle("has-tips", tips.length > 0);
+    if (!text.trim()) statusText.textContent = "Start typing";
+    else statusText.textContent = tips.length ? (tips.length === 1 ? "1 tip" : tips.length + " tips") : "Looking good";
+
+    // Tips list
+    tipsList.innerHTML = "";
+    if (tips.length === 0) {
+      const ok = document.createElement("p");
+      ok.className = "all-good";
+      ok.textContent = text.trim() ? "Looking good! 👍 No tips right now." : "Tips will appear here as you type.";
+      tipsList.appendChild(ok);
+    }
+    tips.forEach(function (tip) {
+      const card = document.createElement("article");
+      card.className = "tip tip-" + tip.type;
+
+      const title = document.createElement("h3");
+      title.textContent = TIP_TYPES[tip.type].icon + " " + tip.title;
+      card.appendChild(title);
+
+      const body = document.createElement("div");
+      body.className = "body";
+      const message = document.createElement("p");
+      message.textContent = tip.message;
+      body.appendChild(message);
+
+      if (tip.example) {
+        const example = document.createElement("p");
+        example.className = "example";
+        example.textContent = tip.example;
+        body.appendChild(example);
+      }
+      card.appendChild(body);
+      tipsList.appendChild(card);
+    });
+
+    save("aib-draft", text);   // keep the unsent draft
+  }
+
+  // Check again every time the user types (with a tiny delay)
+  let typingTimer = null;
+  promptBox.addEventListener("input", function () {
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(update, 250);
+  });
+
+  // -------------------------------------------------------------
+  // 4. TEMPLATE AND CLEAR BUTTONS
+  // -------------------------------------------------------------
+  document.getElementById("template").addEventListener("click", function () {
+    promptBox.value = "Goal: \nContext: \nInstructions: \nOutput: ";
+    promptBox.focus();
+    promptBox.setSelectionRange(6, 6);   // put the cursor after "Goal: "
+    update();
+  });
+
+  document.getElementById("clear").addEventListener("click", function () {
+    promptBox.value = "";
+    promptBox.focus();
+    update();
+  });
+
+  // -------------------------------------------------------------
+  // 5. COPY THE PROMPT (and open the AI app)
+  // -------------------------------------------------------------
+  const toast = document.getElementById("toast");
+  let toastTimer = null;
+  function showToast(message) {
+    toast.textContent = message;
+    toast.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toast.hidden = true; }, 3500);
+  }
+
+  // Try the modern copy; if the phone refuses, select the text instead
+  function copyPrompt() {
+    const text = promptBox.value;
+    if (!text.trim()) {
+      showToast("Your prompt is empty. Type something first.");
+      return;
+    }
+    function fallback() {
+      promptBox.focus();
+      promptBox.select();
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      showToast(ok ? "Copied! Paste it in the AI's chat box." : "Text selected. Tap Copy, then paste it in the AI app.");
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(function () { showToast("Copied! Paste it in the AI's chat box."); })
+        .catch(fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  document.getElementById("copy").addEventListener("click", copyPrompt);
+
+  // The 3 "copy & open" links: copy first, then the link opens the app
+  document.querySelectorAll(".send-link").forEach(function (link) {
+    link.addEventListener("click", function () {
+      copyPrompt();
+      if (settings.factcheck) factcheck.hidden = false;
+    });
+  });
+
+  document.getElementById("factcheck-close").addEventListener("click", function () {
+    factcheck.hidden = true;
+  });
+
+  // -------------------------------------------------------------
+  // 6. SETTINGS SWITCHES (one per tip type in rules.js)
+  // -------------------------------------------------------------
+  const settingsBox = document.getElementById("settings");
+  Object.keys(TIP_TYPES).forEach(function (type) {
+    const info = TIP_TYPES[type];
+
+    const row = document.createElement("div");
+    row.className = "setting";
+
+    const text = document.createElement("div");
+    text.className = "setting-text";
+    const name = document.createElement("strong");
+    name.textContent = info.icon + " " + info.label;
+    const description = document.createElement("span");
+    description.textContent = info.description;
+    text.appendChild(name);
+    text.appendChild(description);
+
+    const switchBox = document.createElement("label");
+    switchBox.className = "switch";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.id = "setting-" + type;
+    checkbox.checked = settings[type];
+    checkbox.setAttribute("aria-label", info.label);
+    const slider = document.createElement("span");
+    slider.className = "slider";
+    switchBox.appendChild(checkbox);
+    switchBox.appendChild(slider);
+
+    checkbox.addEventListener("change", function () {
+      settings[type] = checkbox.checked;
+      save("aib-settings", settings);
+      if (type === "factcheck" && !checkbox.checked) factcheck.hidden = true;
+      update();
+    });
+
+    row.appendChild(text);
+    row.appendChild(switchBox);
+    settingsBox.appendChild(row);
+  });
+
+  // The "Tip settings" button in the header opens the settings section
+  document.querySelector('a[href="#tip-settings"]').addEventListener("click", function () {
+    document.getElementById("tip-settings").open = true;
+  });
+
+  // -------------------------------------------------------------
+  // 7. START: bring back the last draft, or show an example
+  // -------------------------------------------------------------
+  const draft = load("aib-draft", null);
+  promptBox.value = draft !== null ? draft : EXAMPLES[0].text;
+  update();
+</script>
+</body>
+</html>
